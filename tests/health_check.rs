@@ -1,7 +1,6 @@
 use std::net::TcpListener;
-
-use actix_web::{Responder, HttpResponse};
-use newsletter_service::*;
+use newsletter_service::{startup::run, configuration::get_configuration};
+use sqlx::{PgConnection, Connection};
 
 #[tokio::test]
 async fn health_check_works()  {
@@ -25,6 +24,12 @@ async fn health_check_works()  {
 async fn subscribe_returns_200_for_a_valid_form_data() {
     // Arrange
     let app_address = spawn_app();
+    let configuration = get_configuration().expect("Failed to read configuration");
+    let connection_string = configuration.database.connection_string();
+    // The Connection trait must be in scope for us to invoke the connection, it is not an inherit method of the struct.
+    let mut connection = PgConnection::connect(&connection_string)
+                                                .await
+                                                .expect("Failed to connect to Postgres");
     let client = reqwest::Client::new();
 
     // Act
@@ -38,7 +43,15 @@ async fn subscribe_returns_200_for_a_valid_form_data() {
                                     .expect("could not send form data");
     
     // Assert
-    assert_eq!(200, response.status().as_u16())
+    assert_eq!(200, response.status().as_u16());
+
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
+                .fetch_one(&mut connection)
+                .await
+                .expect("Failed to fetch data");
+    
+    assert_eq!(saved.email, "christopher.wilke86@googlemail.com");
+    assert_eq!(saved.name, "christopher wilke");
 }
 
 #[tokio::test]
@@ -76,7 +89,7 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
 fn spawn_app() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Could not bind");
     let port = listener.local_addr().unwrap().port();
-    let server = newsletter_service::run(listener).expect("could not bind");
+    let server = run(listener).expect("could not bind");
     let _ = tokio::spawn(server);
     
     format!("http://127.0.0.1:{}", port)
