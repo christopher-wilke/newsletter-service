@@ -1,6 +1,7 @@
 use std::net::TcpListener;
-use newsletter_service::{startup::run, configuration::get_configuration};
-use sqlx::{PgPool, PgConnection, Connection};
+use newsletter_service::{startup::run, configuration::{get_configuration, DatabaseSettings}};
+use sqlx::{PgPool, PgConnection, Connection, Executor, Pool, Postgres};
+use uuid::Uuid;
 
 pub struct TestApp {
     pub address: String,
@@ -28,7 +29,7 @@ async fn health_check_works()  {
 #[tokio::test]
 async fn subscribe_returns_200_for_a_valid_form_data() {
     // Arrange
-    let mut app_instance = spawn_app().await;
+    let app_instance = spawn_app().await;
     let configuration = get_configuration().expect("Failed to read configuration");
     let connection_string = configuration.database.connection_string();
     // The Connection trait must be in scope for us to invoke the connection, it is not an inherit method of the struct.
@@ -95,8 +96,9 @@ async fn spawn_app() -> TestApp {
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
 
-    let configuration = get_configuration().expect("Failed to read configuration.");
-    let connection_pool = PgPool::connect(&configuration.database.connection_string()).await.expect("Failed to connect to Postgres");
+    let mut configuration = get_configuration().expect("Failed to read configuration.");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+    let connection_pool = configure_database(&configuration.database).await;
 
     let server = run(listener, connection_pool.clone()).expect("could not bind");
     let _ = tokio::spawn(server);
@@ -105,4 +107,25 @@ async fn spawn_app() -> TestApp {
         address,
         db_pool: connection_pool
     }
+}
+
+pub async fn configure_database(config: &DatabaseSettings) -> Pool<Postgres> {
+    let mut con = PgConnection::connect(&config.connection_string_without_db())
+                                                            .await
+                                                            .expect("Failled to connect");
+    con.execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+                .await
+                .expect("Could not create Table");
+    
+    // Migrate DB
+    let connection_pool = PgPool::connect(&config.connection_string())
+                                                            .await
+                                                            .expect("Failed to connect to Postgres");
+
+    sqlx::migrate!("./migrations")
+                .run(&connection_pool)
+                .await
+                .expect("Failed to migrate DB");
+
+    connection_pool
 }
