@@ -38,7 +38,7 @@ async fn subscribe_returns_200_for_a_valid_form_data() {
     let client = reqwest::Client::new();
 
     // Act
-    let body = "name=janina2%20wilke&email=janina2.wilke%40googlemail.com";
+    let body = "name=christopher%20wilke&email=christopher.wilke86%40googlemail.com";
     let response = client
                                     .post(&format!("{}/subscriptions", &app_instance.address))
                                     .header("Content-Type", "application/x-www-form-urlencoded")
@@ -55,8 +55,8 @@ async fn subscribe_returns_200_for_a_valid_form_data() {
                 .await
                 .expect("Failed to fetch data");
     
-    assert_eq!(saved.email, "janina2.wilke@googlemail.com");
-    assert_eq!(saved.name, "janina2 wilke");
+    assert_eq!(saved.email, "christopher.wilke86@googlemail.com");
+    assert_eq!(saved.name, "christopher wilke");
 }
 
 // #[tokio::test]
