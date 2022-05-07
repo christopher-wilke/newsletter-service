@@ -29,35 +29,30 @@ async fn health_check_works()  {
 #[tokio::test]
 async fn subscribe_returns_200_for_a_valid_form_data() {
     // Arrange
-    let app_instance = spawn_app().await;
-    let configuration = get_configuration().expect("Failed to read configuration");
-    let connection_string = configuration.database.connection_string();
-    // The Connection trait must be in scope for us to invoke the connection, it is not an inherit method of the struct.
-    let mut connection = PgConnection::connect(&connection_string)
-                                                .await
-                                                .expect("Failed to connect to Postgres");
+    let app = spawn_app().await;
     let client = reqwest::Client::new();
 
     // Act
-    let body = "name=christopher%20wilke&email=christopher.wilke86%40googlemail.com";
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let response = client
-                                    .post(&format!("{}/subscriptions", &app_instance.address))
-                                    .header("Content-Type", "application/x-www-form-urlencoded")
-                                    .body(body)
-                                    .send()
-                                    .await
-                                    .expect("could not send form data");
+        .post(&format!("{}/subscriptions", &app.address))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body)
+        .send()
+        .await
+        .expect("Failed to execute post request");
     
     // Assert
     assert_eq!(200, response.status().as_u16());
 
-    let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
-                .fetch_one(&mut connection)
-                .await
-                .expect("Failed to fetch data");
-    
-    assert_eq!(saved.email, "christopher.wilke86@googlemail.com");
-    assert_eq!(saved.name, "christopher wilke");
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions")
+        .fetch_one(&app.db_pool)
+        .await
+        .expect("Failed to read data");
+
+    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved.name, "le guin");
+
 }
 
 #[tokio::test]
@@ -91,8 +86,12 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
     }
 }
 
+// Functions was turned asynchronous
 async fn spawn_app() -> TestApp {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("Could not bind");
+    let listener = TcpListener::bind("127.0.0.1:0")
+                                            .expect("Failed to bind random port");
+    
+    // We retrieve the port assigend to us by the OS
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
 

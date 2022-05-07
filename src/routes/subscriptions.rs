@@ -14,6 +14,9 @@ pub async fn subscribe(
     connection: web::Data<PgPool>
 ) -> impl Responder {
 
+    // 'Result' has two variants: 'Ok' and 'Err'.
+    // The first for successes, the second for failures.
+    // We use a 'match' statement to choose what to to based on the outcome.
     match sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)
