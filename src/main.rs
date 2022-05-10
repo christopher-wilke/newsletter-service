@@ -13,7 +13,8 @@ async fn main() -> std::io::Result<()> {
 
     let subscriber = get_subscriber(
         "newsletter-service".into(), 
-        "info".into()
+        "info".into(),
+        std::io::stdout
     );
     init_subscriber(subscriber);
 

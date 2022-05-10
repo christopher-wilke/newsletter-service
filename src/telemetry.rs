@@ -1,7 +1,7 @@
 use tracing::{Subscriber, subscriber::set_global_default};
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
-use tracing_subscriber::{EnvFilter, Registry, prelude::__tracing_subscriber_SubscriberExt};
+use tracing_subscriber::{EnvFilter, Registry, prelude::__tracing_subscriber_SubscriberExt, fmt::MakeWriter};
 
 /// Compose multiple layers into a `tracing`'s subscriber.
 /// 
@@ -12,16 +12,23 @@ use tracing_subscriber::{EnvFilter, Registry, prelude::__tracing_subscriber_Subs
 /// 
 /// We need to explicitly call out that the returned subscriber is `Send` and `Sync` to make it possible
 /// to pass it it to `init_subscriber` later on.
-pub fn get_subscriber(
+pub fn get_subscriber<Sink>(
     name: String,
-    env_filter: String
-) -> impl Subscriber + Send + Sync {
+    env_filter: String,
+    sink: Sink
+) -> impl Subscriber + Send + Sync 
+    where
+    // This syntax is a higher-ranked trait bound (HRTB)
+    // It basicaly means that Sink implements the 'MakeWriter' trait for all
+    // choinces of the lifetime parameter 'a.
+    Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static
+{
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(env_filter));
 
     let formatting_layer = BunyanFormattingLayer::new(
         name.into(),
-        std::io::stdout
+        sink
     );
 
      Registry::default()
