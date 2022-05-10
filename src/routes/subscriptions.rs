@@ -10,27 +10,22 @@ pub struct FormData {
     name: String
 }
 
+#[tracing::instrument(
+    name = "Adding a new subscriber",
+    skip(form, connection)
+    fields(
+        request_id = %Uuid::new_v4(),
+        subscriber_email = %form.email,
+        subscriber_name = %form.name
+    )
+)]
 pub async fn subscribe(
     form: web::Form<FormData>,
     connection: web::Data<PgPool>
 ) -> impl Responder {
 
-    let request_id = Uuid::new_v4();
-
-    let request_span = tracing::info_span!(
-        "Adding a new subscriber",
-        %request_id,
-        subscribe_email = %form.email,
-        subscriber_name = %form.name
-    );
-
-    let _request_span_guard = request_span.enter();
-
-    // We do not call '.enter' on query_span!
-    // '.instrument' takes care of it at the right moments in the query future lifetime
-
     let query_span = tracing::info_span!(
-        "Saving new sbuscriber details in the database"
+        "Saving new subscriber details in the database"
     );
 
     // 'Result' has two variants: 'Ok' and 'Err'.
@@ -49,15 +44,9 @@ pub async fn subscribe(
     .execute(connection.get_ref())
     .instrument(query_span)
     .await {
-        Ok(_) => {
-            tracing::info!(
-                "request_id {} - New sbuscriber details have been saved",
-                request_id
-            );
-            HttpResponse::Ok().finish()
-        },
+        Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => {
-            tracing::error!("request_id {} - Failed to execute query, {:?}", request_id, e);
+            tracing::error!("Failed to execute query, {:?}", e);
             HttpResponse::InternalServerError().finish()
         } 
     }    
