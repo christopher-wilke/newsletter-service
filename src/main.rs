@@ -4,6 +4,7 @@ mod routes;
 mod startup;
 
 use newsletter_service::{configuration::{get_configuration, DatabaseSettings}, telemetry::{get_subscriber, init_subscriber}};
+use secrecy::ExposeSecret;
 use sqlx::{PgPool, PgConnection, Connection, Pool, Postgres, Executor};
 use startup::run;
 use uuid::Uuid;
@@ -29,7 +30,7 @@ async fn main() -> std::io::Result<()> {
 }
 
 pub async fn configure_database(config: &DatabaseSettings) -> Pool<Postgres> {
-    let mut con = PgConnection::connect(&config.connection_string_without_db())
+    let mut con = PgConnection::connect(&config.connection_string_without_db().expose_secret())
                                                             .await
                                                             .expect("Failled to connect");
     con.execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
@@ -37,7 +38,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> Pool<Postgres> {
                 .expect("Could not create Table");
     
     // Migrate DB
-    let connection_pool = PgPool::connect(&config.connection_string())
+    let connection_pool = PgPool::connect(&config.connection_string().expose_secret())
                                                             .await
                                                             .expect("Failed to connect to Postgres");
 

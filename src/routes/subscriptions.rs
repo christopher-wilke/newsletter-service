@@ -11,7 +11,11 @@ pub struct FormData {
 
 #[tracing::instrument(
     name = " Saving new subscriber details in the database",
-    skip(form, pool)
+    skip(form, pool),
+    fields(
+        subscriber_email = %form.email,
+        subscriber_name = %form.name
+    )
 )]
 pub async fn insert_subscriber(
     pool: &PgPool,
