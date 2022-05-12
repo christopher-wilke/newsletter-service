@@ -24,7 +24,10 @@ async fn main() -> std::io::Result<()> {
 
     let con = configure_database(&configuration.database).await;
 
-    let address = format!("127.0.0.1:{}", configuration.application_port);
+    let address = format!("{}:{}", 
+        configuration.application.host,
+        configuration.application.port
+    );
     let listener = TcpListener::bind(address).expect("Could not bind");
     run(listener, con)?.await
 }
@@ -38,8 +41,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> Pool<Postgres> {
                 .expect("Could not create Table");
     
     // Migrate DB
-    let connection_pool = PgPool::connect(&config.connection_string().expose_secret())
-                                                            .await
+    let connection_pool = PgPool::connect_lazy(&config.connection_string().expose_secret())
                                                             .expect("Failed to connect to Postgres");
 
     sqlx::migrate!("./migrations")
