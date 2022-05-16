@@ -1,12 +1,7 @@
 use std::net::TcpListener;
-
-mod routes;
-mod startup;
-
-use newsletter_service::{configuration::{get_configuration, DatabaseSettings}, telemetry::{get_subscriber, init_subscriber}};
+use newsletter_service::{configuration::{get_configuration, DatabaseSettings}, telemetry::{get_subscriber, init_subscriber}, startup::run};
 use secrecy::ExposeSecret;
 use sqlx::{PgPool, PgConnection, Connection, Pool, Postgres, Executor};
-use startup::run;
 use uuid::Uuid;
 
 #[tokio::main]
