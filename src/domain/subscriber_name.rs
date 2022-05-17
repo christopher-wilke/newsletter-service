@@ -40,3 +40,16 @@ impl AsRef<str> for SubscriberName {
         &self.0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use claim::assert_ok;
+
+    use super::*;
+
+    #[test]
+    fn a_256_graphmeme_long_name_is_valid() {
+        let name = "e".repeat(255);
+        assert_ok!(SubscriberName::parse(name));
+    }
+}
