@@ -1,5 +1,5 @@
 use std::net::TcpListener;
-use newsletter_service::{configuration::{get_configuration, DatabaseSettings}, telemetry::{get_subscriber, init_subscriber}, startup::run};
+use newsletter_service::{configuration::{get_configuration, DatabaseSettings}, telemetry::{get_subscriber, init_subscriber}, startup::run, email_client::EmailClient};
 use secrecy::ExposeSecret;
 use sqlx::{PgPool, PgConnection, Connection, Pool, Postgres, Executor};
 use uuid::Uuid;
@@ -19,12 +19,23 @@ async fn main() -> std::io::Result<()> {
 
     let con = configure_database(&configuration.database).await;
 
+    // Build an `EmailClient` using `configuration`
+    let sender_email = configuration.email_client.sender()
+        .expect("Invalid sender Email Address");
+    let email_client = EmailClient::new(
+        configuration.email_client.base_url,
+        sender_email
+    );
+
+
     let address = format!("{}:{}", 
         configuration.application.host,
         configuration.application.port
     );
     let listener = TcpListener::bind(address).expect("Could not bind");
-    run(listener, con)?.await
+    run(listener, con, email_client)?.await?;
+
+    Ok(())
 }
 
 pub async fn configure_database(config: &DatabaseSettings) -> Pool<Postgres> {
