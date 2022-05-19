@@ -12,6 +12,7 @@ pub struct EmailClient {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct SendEmailRequest {
     from: String,
     to: String,
@@ -84,6 +85,7 @@ mod tests {
             // Try to parse the body as a JSON value
             let result: Result<serde_json::Value, _> = serde_json::from_slice(&request.body);
             if let Ok(body) = result {
+                dbg!(&body);
                 body.get("From").is_some()
                 && body.get("To").is_some()
                 && body.get("Subject").is_some()
