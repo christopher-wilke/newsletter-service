@@ -1,5 +1,5 @@
 use reqwest::Client;
-use secrecy::Secret;
+use secrecy::{Secret, ExposeSecret};
 
 use crate::domain::SubscriberEmail;
 
@@ -41,7 +41,8 @@ impl EmailClient {
         subject: &str,
         html_content: &str,
         text_content: &str
-    ) -> Result<(), String> {
+    ) -> Result<(), reqwest::Error> {
+
         let url = format!("{}/email", self.base_url);
         let request_body = SendEmailRequest {
             from: self.sender.as_ref().to_owned(),
@@ -53,7 +54,13 @@ impl EmailClient {
 
         let builder = self.http_client
             .post(&url)
-            .json(&request_body);
+            .header(
+                "X-Postmark-Server-Token",
+                self.authorization_token.expose_secret()
+            )
+            .json(&request_body)
+            .send()
+            .await?;
 
         Ok(())
     }
@@ -65,10 +72,28 @@ mod tests {
     use fake::faker::lorem::en::{Sentence, Paragraph};
     use fake::{faker::internet::en::SafeEmail, Fake};
     use secrecy::Secret;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-    use wiremock::matchers::any;
+    use wiremock::{Mock, MockServer, Request, ResponseTemplate};
+    use wiremock::matchers::{header_exists, header, path, method};
     use crate::domain::SubscriberEmail;
     use super::EmailClient;
+
+    struct SendEmailBodyMatcher;
+
+    impl wiremock::Match for SendEmailBodyMatcher {
+        fn matches(&self, request: &Request) -> bool {
+            // Try to parse the body as a JSON value
+            let result: Result<serde_json::Value, _> = serde_json::from_slice(&request.body);
+            if let Ok(body) = result {
+                body.get("From").is_some()
+                && body.get("To").is_some()
+                && body.get("Subject").is_some()
+                && body.get("HtmlBody").is_some()
+                && body.get("TextBody").is_some()
+            } else {
+                false
+            }
+        }
+    }
 
     #[tokio::test]
     async fn send_email_fires_a_request_to_base_url() {
@@ -81,7 +106,12 @@ mod tests {
             Secret::new(Faker.fake())
         );
         
-        Mock::given(any())
+        Mock::given(header_exists("X-Postmark-Server-Token"))
+            .and(header("Content-Type", "application/json"))
+            .and(path("/email"))
+            .and(method("POST"))
+            // Custom Matcher
+            .and(SendEmailBodyMatcher)
             .respond_with(ResponseTemplate::new(200))
             .expect(1)
             .mount(&mock_server)
