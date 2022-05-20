@@ -37,6 +37,7 @@ async fn main() -> std::io::Result<()> {
         configuration.application.host,
         configuration.application.port
     );
+    
     let listener = TcpListener::bind(address).expect("Could not bind");
     run(listener, con, email_client)?.await?;
 
@@ -46,7 +47,7 @@ async fn main() -> std::io::Result<()> {
 pub async fn configure_database(config: &DatabaseSettings) -> Pool<Postgres> {
     let mut con = PgConnection::connect(&config.connection_string_without_db().expose_secret())
                                                             .await
-                                                            .expect("Failled to connect");
+                                                            .expect("Failed to connect");
     con.execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
                 .await
                 .expect("Could not create Table");

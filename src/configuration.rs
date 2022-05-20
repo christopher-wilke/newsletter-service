@@ -1,6 +1,8 @@
 use config::Config;
 use secrecy::Secret;
 use secrecy::ExposeSecret;
+use sqlx::ConnectOptions;
+use sqlx::postgres::PgConnectOptions;
 
 use crate::domain::SubscriberEmail;
 
@@ -112,5 +114,20 @@ impl DatabaseSettings {
             self.host,
             self.port
         ))
+    }
+
+    pub fn without_db(&self) -> PgConnectOptions {
+        PgConnectOptions::new()
+        .host(&self.host)
+        .username(&self.username)
+        .password(&self.password.expose_secret())
+        .port(self.port)
+    }
+        
+
+    pub fn with_db(&self) -> PgConnectOptions {
+        let mut options = self.without_db().database(&self.database_name);
+        options.log_statements(tracing::log::LevelFilter::Trace);
+        options
     }
 }
