@@ -3,7 +3,6 @@ use newsletter_service::{startup::run, configuration::{get_configuration, Databa
 use once_cell::sync::Lazy;
 use secrecy::ExposeSecret;
 use sqlx::{PgPool, PgConnection, Connection, Executor, Pool, Postgres};
-use tracing::debug;
 use uuid::Uuid;
 
 // Ensures that the `tracing` stack is only initialised once using `once_cell`
@@ -157,11 +156,13 @@ async fn spawn_app() -> TestApp {
     let connection_pool = configure_database(&configuration.database).await;
 
     let sender_email = configuration.email_client.sender().expect("Invalid sender email address");
+    let timeout = configuration.email_client.timeout();
 
     let email_client = EmailClient::new(
         configuration.email_client.base_url,
         sender_email,
-        configuration.email_client.authorization_token
+        configuration.email_client.authorization_token,
+        timeout
     );
 
     let server = run(

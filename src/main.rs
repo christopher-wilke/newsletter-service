@@ -22,10 +22,14 @@ async fn main() -> std::io::Result<()> {
     // Build an `EmailClient` using `configuration`
     let sender_email = configuration.email_client.sender()
         .expect("Invalid sender Email Address");
+
+    let timeout = configuration.email_client.timeout();
+
     let email_client = EmailClient::new(
         configuration.email_client.base_url,
         sender_email,
-        configuration.email_client.authorization_token
+        configuration.email_client.authorization_token,
+        timeout
     );
 
 
