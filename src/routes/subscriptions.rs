@@ -3,7 +3,7 @@ use chrono::Utc;
 use sqlx::{PgPool};
 use uuid::Uuid;
 use unicode_segmentation::UnicodeSegmentation;
-use crate::domain::{NewSubscriber, SubscriberName, SubscriberEmail};
+use crate::{domain::{NewSubscriber, SubscriberName, SubscriberEmail}, email_client::EmailClient};
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -32,8 +32,8 @@ pub async fn insert_subscriber(
 
     sqlx::query!(
         r#"
-        INSERT INTO subscriptions (id, email, name, subscribed_at)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO subscriptions (id, email, name, subscribed_at, status)
+        VALUES ($1, $2, $3, $4, 'confirmed')
         "#,
         Uuid::new_v4(),
         new_subscriber.email.as_ref(),
@@ -53,18 +53,35 @@ pub async fn insert_subscriber(
 
 pub async fn subscribe(
     form: web::Form<FormData>,
-    connection: web::Data<PgPool>
+    connection: web::Data<PgPool>,
+    email_client: web::Data<EmailClient>
 ) -> HttpResponse {
 
-    let new_subscriber = match form.0.try_into() {
+    let new_subscriber: NewSubscriber = match form.0.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => return HttpResponse::BadRequest().finish()
     };
 
-    match insert_subscriber(&connection, new_subscriber).await {
-        Ok(_) => HttpResponse::Ok().finish(),
-        Err(_) => HttpResponse::InternalServerError().finish()
-    }
+    // Send a useless email to the new subscriber. Ignoring delivery errors for now.
+    if email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome",
+            "Welcome tou our newsletter!",
+            "Welcome tou our newsletter!"
+        )
+        .await
+        .is_err() 
+        {
+            return HttpResponse::InternalServerError().finish();
+        }
+
+    HttpResponse::Ok().finish()
+
+    // match insert_subscriber(&connection, new_subscriber).await {
+    //     Ok(_) => HttpResponse::Ok().finish(),
+    //     Err(_) => HttpResponse::InternalServerError().finish()
+    // }
 
 }
 
