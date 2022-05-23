@@ -1,5 +1,4 @@
-use std::net::TcpListener;
-use newsletter_service::{configuration::{get_configuration, DatabaseSettings}, telemetry::{get_subscriber, init_subscriber}, startup::run, email_client::EmailClient};
+use newsletter_service::{configuration::{get_configuration, DatabaseSettings}, telemetry::{get_subscriber, init_subscriber}, startup::{run, Application}, email_client::EmailClient};
 use secrecy::ExposeSecret;
 use sqlx::{PgPool, PgConnection, Connection, Pool, Postgres, Executor};
 use uuid::Uuid;
@@ -17,29 +16,8 @@ async fn main() -> std::io::Result<()> {
     let mut configuration = get_configuration().expect("Failed to read the configuration");
     configuration.database.database_name = Uuid::new_v4().to_string();
 
-    let con = configure_database(&configuration.database).await;
-
-    // Build an `EmailClient` using `configuration`
-    let sender_email = configuration.email_client.sender()
-        .expect("Invalid sender Email Address");
-
-    let timeout = configuration.email_client.timeout();
-
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url,
-        sender_email,
-        configuration.email_client.authorization_token,
-        timeout
-    );
-
-
-    let address = format!("{}:{}", 
-        configuration.application.host,
-        configuration.application.port
-    );
-    
-    let listener = TcpListener::bind(address).expect("Could not bind");
-    run(listener, con, email_client)?.await?;
+    let application = Application::build(configuration).await?;
+    application.run_until_stopped().await?;
 
     Ok(())
 }
