@@ -1,5 +1,4 @@
-use std::net::TcpListener;
-use newsletter_service::{startup::{run, build, get_connection_pool, Application}, configuration::{get_configuration, DatabaseSettings}, telemetry::{get_subscriber, init_subscriber}, email_client::EmailClient};
+use newsletter_service::{startup::{get_connection_pool, Application}, configuration::{get_configuration, DatabaseSettings}, telemetry::{get_subscriber, init_subscriber}, email_client::EmailClient};
 use once_cell::sync::Lazy;
 use secrecy::ExposeSecret;
 use sqlx::{PgPool, PgConnection, Connection, Executor, Pool, Postgres};
@@ -36,6 +35,18 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool
+}
+
+impl TestApp {
+    pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
+        reqwest::Client::new()
+            .post(&format!("{}/subscriptions", &self.address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute reqest")
+    }
 }
 
 pub async fn spawn_app() -> TestApp {
