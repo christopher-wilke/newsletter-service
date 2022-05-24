@@ -27,7 +27,7 @@ impl TryFrom<FormData> for NewSubscriber {
 )]
 pub async fn insert_subscriber(
     pool: &PgPool,
-    new_subscriber: NewSubscriber
+    new_subscriber: &NewSubscriber
 ) -> Result<(), sqlx::Error> {
 
     sqlx::query!(
@@ -51,6 +51,36 @@ pub async fn insert_subscriber(
     Ok(())
 }
 
+#[tracing::instrument(
+    name = "Send a confirmation email to a new subscriber",
+    skip(email_client, new_subscriber)
+)]
+pub async fn send_confirmation_email(
+    email_client: &EmailClient,
+    new_subscriber: NewSubscriber
+) -> Result<(), reqwest::Error> {
+
+    let confirmation_link = "https://my-api.com/subscriptions/confirm";
+    let play_body = format!(
+        "Welcome to our newsletter!\nVisit {} to confirm your subscription.",
+        confirmation_link
+    );
+    let html_body = format!(
+        "Welcome to our newsletter!<br />\
+        Click <a href=\"{}\">here</a> to confirm your subscription.",
+        confirmation_link
+    );
+
+    email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome!",
+            &html_body,
+            &play_body
+        )
+        .await
+}
+
 pub async fn subscribe(
     form: web::Form<FormData>,
     connection: web::Data<PgPool>,
@@ -62,27 +92,19 @@ pub async fn subscribe(
         Err(_) => return HttpResponse::BadRequest().finish()
     };
 
+    if insert_subscriber(&connection, &new_subscriber).await.is_err() {
+        return HttpResponse::InternalServerError().finish();
+    }
+
     // Send a useless email to the new subscriber. Ignoring delivery errors for now.
-    if email_client
-        .send_email(
-            new_subscriber.email,
-            "Welcome",
-            "Welcome tou our newsletter!",
-            "Welcome tou our newsletter!"
-        )
+    if send_confirmation_email(&email_client, new_subscriber)
         .await
-        .is_err() 
-        {
-            return HttpResponse::InternalServerError().finish();
-        }
+        .is_err()
+    {
+        return HttpResponse::InternalServerError().finish();
+    }
 
     HttpResponse::Ok().finish()
-
-    // match insert_subscriber(&connection, new_subscriber).await {
-    //     Ok(_) => HttpResponse::Ok().finish(),
-    //     Err(_) => HttpResponse::InternalServerError().finish()
-    // }
-
 }
 
 /// Returns `true` if the input satifies all our validation constraints
